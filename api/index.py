@@ -1,6 +1,27 @@
 import os
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse # <-- Make sure this is imported
+from supabase import create_client, Client
+
+app = FastAPI()
+
+# --- ADD THIS HOME FALLBACK ROUTE TO FIX THE 404/NOT FOUND ERROR ---
+@app.get("/", response_class=HTMLResponse)
+def serve_home():
+    # Looks for your frontend index file inside your root project folder deployment
+    public_path = os.path.join(os.getcwd(), "public", "index.html")
+    if os.path.exists(public_path):
+        with open(public_path, "r", encoding="utf-8") as file:
+            return file.read()
+    return "<h1>⚡ NEON_VAULT Core Online</h1><p>API endpoint listening successfully. Frontend configuration mounting...</p>"
+# --------------------------------------------------------------------
+
+# Keep all your other existing Supabase configuration, CORS middlewares, 
+# and upload/delete endpoints exactly the same underneath...
+import os
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client, Client
 
 app = FastAPI()
