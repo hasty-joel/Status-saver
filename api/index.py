@@ -28,9 +28,15 @@ else:
     except Exception:
         supabase = None
 
-# Calculate absolute paths pointing into Vercel's deployment container
+# --- DYNAMIC VERCEL PATH LOGIC CORRECTION ---
+# 1. Try resolving via the absolute file location profile
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PUBLIC_DIR = os.path.join(BASE_DIR, "public")
+
+# 2. Fallback check: If Vercel executes directly out of the project root directory context
+if not os.path.exists(PUBLIC_DIR):
+    PUBLIC_DIR = os.path.join(os.getcwd(), "public")
+# ---------------------------------------------
 
 @app.get("/")
 def serve_index():
@@ -38,7 +44,12 @@ def serve_index():
     index_path = os.path.join(PUBLIC_DIR, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
-    return {"error": "Frontend assets missing in public/ folder"}
+    return {
+        "error": "Frontend assets missing in public/ folder",
+        "debug_current_working_directory": os.getcwd(),
+        "debug_calculated_public_dir": PUBLIC_DIR,
+        "debug_public_dir_exists": os.path.exists(PUBLIC_DIR)
+    }
 
 @app.get("/script.js")
 def serve_script():
