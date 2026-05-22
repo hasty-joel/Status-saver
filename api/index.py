@@ -1,6 +1,7 @@
 import os
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from supabase import create_client, Client
 
 app = FastAPI()
@@ -26,19 +27,331 @@ try:
 except Exception:
     supabase = None
 
-@app.get("/api/root")
-def server_root_status():
-    """Simple status check route to verify api engine mapping is online."""
-    return {"api_engine": "online", "routing_mode": "native_rewrites"}
+# --- SERVE FULL FRONTEND ENGINE DIRECTLY FROM MEMORY ---
+@app.get("/", response_class=HTMLResponse)
+def serve_frontend():
+    return """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>MATRIX_VAULT // Core Control</title>
+        <style>
+            :root {
+                --neon-green: #00ff66;
+                --neon-blue: #00f0ff;
+                --dark-bg: #0a0a0c;
+                --panel-bg: #12121a;
+                --border-color: #222230;
+            }
+            body {
+                background-color: var(--dark-bg);
+                color: #ffffff;
+                font-family: 'Courier New', Courier, monospace;
+                margin: 0;
+                padding: 20px;
+            }
+            .container {
+                max-width: 1000px;
+                margin: 0 auto;
+            }
+            header {
+                border-bottom: 2px solid var(--neon-blue);
+                padding-bottom: 10px;
+                margin-bottom: 30px;
+            }
+            h1 {
+                color: var(--neon-green);
+                margin: 0;
+                text-shadow: 0 0 10px rgba(0, 255, 102, 0.3);
+            }
+            .upload-card {
+                background-color: var(--panel-bg);
+                border: 1px solid var(--neon-blue);
+                padding: 20px;
+                border-radius: 4px;
+                margin-bottom: 30px;
+            }
+            .drop-zone {
+                border: 2px dashed #333344;
+                padding: 30px;
+                text-align: center;
+                cursor: pointer;
+                transition: 0.3s;
+            }
+            .drop-zone:hover {
+                border-color: var(--neon-green);
+                background: rgba(0, 255, 102, 0.02);
+            }
+            .batch-actions {
+                display: flex;
+                gap: 15px;
+                margin-bottom: 20px;
+                background: #111116;
+                padding: 15px;
+                border: 1px solid var(--border-color);
+            }
+            button {
+                background: transparent;
+                color: var(--neon-blue);
+                border: 1px solid var(--neon-blue);
+                padding: 8px 16px;
+                font-family: monospace;
+                cursor: pointer;
+                font-weight: bold;
+            }
+            button:hover {
+                background: rgba(0, 240, 255, 0.1);
+                box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+            }
+            button.danger {
+                color: #ff3366;
+                border-color: #ff3366;
+            }
+            button.danger:hover {
+                background: rgba(255, 51, 102, 0.1);
+                box-shadow: 0 0 10px rgba(255, 51, 102, 0.3);
+            }
+            .vault-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+                gap: 20px;
+            }
+            .asset-card {
+                background: var(--panel-bg);
+                border: 1px solid var(--border-color);
+                border-radius: 4px;
+                overflow: hidden;
+                position: relative;
+                transition: 0.2s;
+            }
+            .asset-card.selected {
+                border-color: var(--neon-green);
+                box-shadow: 0 0 12px rgba(0, 255, 102, 0.2);
+            }
+            .preview-box {
+                width: 100%;
+                height: 150px;
+                background: #000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                position: relative;
+            }
+            .preview-box img, .preview-box video {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+            .card-meta {
+                padding: 12px;
+                font-size: 13px;
+            }
+            .filename-text {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                margin-bottom: 8px;
+            }
+            .checkbox-container {
+                position: absolute;
+                top: 10px;
+                left: 10px;
+                z-index: 10;
+                background: rgba(0,0,0,0.7);
+                padding: 5px;
+                border-radius: 3px;
+                border: 1px solid #333;
+            }
+            .checkbox-container input {
+                cursor: pointer;
+                width: 16px;
+                height: 16px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <header>
+                <h1>⚡ MATRIX_VAULT // CORE INTERFACE</h1>
+                <p>System Layer: Serving Directly From Python Core Memory</p>
+            </header>
+
+            <div class="upload-card">
+                <div class="drop-zone" onclick="document.getElementById('filePicker').click()">
+                    <p>⚙️ CLICK OR DRAG ASSETS HERE TO INJECT INTO THE CLOUD ARRAY ⚙️</p>
+                    <input type="file" id="filePicker" style="display:none" onchange="uploadAsset(this.files[0])">
+                </div>
+                <div id="statusReport" style="margin-top:10px; color:var(--neon-green)"></div>
+            </div>
+
+            <h2>📦 ARCHIVED ASSETS</h2>
+            
+            <div class="batch-actions">
+                <button onclick="toggleSelectAll()">Select/Deselect All</button>
+                <button onclick="downloadSelected()">📥 Download Selected</button>
+                <button class="danger" onclick="deleteSelected()">🗑️ Delete Selected</button>
+            </div>
+
+            <div class="vault-grid" id="vaultGrid"></div>
+        </div>
+
+        <script>
+            let assetRegistry = [];
+            let selectedAssets = new Set();
+
+            async function fetchVaultFeed() {
+                try {
+                    const response = await fetch('/api/media');
+                    assetRegistry = await response.json();
+                    renderVaultGrid();
+                } catch (err) {
+                    console.error("Failed to query API architecture:", err);
+                }
+            }
+
+            function renderVaultGrid() {
+                const grid = document.getElementById('vaultGrid');
+                grid.innerHTML = '';
+
+                if (!assetRegistry || assetRegistry.length === 0) {
+                    grid.innerHTML = '<p style="color:#666; grid-column: 1/-1;">No records found inside database repository.</p>';
+                    return;
+                }
+
+                assetRegistry.forEach(asset => {
+                    const isSelected = selectedAssets.has(asset.filename);
+                    const card = document.createElement('div');
+                    card.className = `asset-card ${isSelected ? 'selected' : ''}`;
+                    
+                    let visualPreview = `<img src="${asset.url}" alt="asset">`;
+                    if (asset.file_type && asset.file_type.includes('video')) {
+                        visualPreview = `<video src="${asset.url}" muted playsinline></video>`;
+                    }
+
+                    card.innerHTML = `
+                        <div class="checkbox-container">
+                            <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleAssetSelection('${asset.filename}')">
+                        </div>
+                        <div class="preview-box">
+                            ${visualPreview}
+                        </div>
+                        <div class="card-meta">
+                            <div class="filename-text" title="${asset.filename}">${asset.filename}</div>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+            }
+
+            function toggleAssetSelection(filename) {
+                if (selectedAssets.has(filename)) {
+                    selectedAssets.delete(filename);
+                } else {
+                    selectedAssets.add(filename);
+                }
+                renderVaultGrid();
+            }
+
+            function toggleSelectAll() {
+                if (selectedAssets.size === assetRegistry.length) {
+                    selectedAssets.clear();
+                } else {
+                    selectedAssets = new Set(assetRegistry.map(a => a.filename));
+                }
+                renderVaultGrid();
+            }
+
+            async function uploadAsset(file) {
+                if (!file) return;
+                const feedback = document.getElementById('statusReport');
+                feedback.innerText = "⚡ TRANSMITTING ASSET ARRAY BINARIES...";
+
+                const packet = new FormData();
+                packet.append('file', file);
+
+                try {
+                    const response = await fetch('/api/upload', { method: 'POST', body: packet });
+                    if (response.ok) {
+                        feedback.innerText = "✅ ASSET STREAM STORED IN SUPABASE DATASTRUCTURES.";
+                        fetchVaultFeed();
+                    } else {
+                        feedback.innerText = "❌ PIPELINE REJECTED ASSET PAYLOAD.";
+                    }
+                } catch (err) {
+                    feedback.innerText = "❌ PLATFORM TRANSACTION FAULT.";
+                }
+            }
+
+            async function downloadSelected() {
+                if (selectedAssets.size === 0) {
+                    alert("Select at least one checklist item first.");
+                    return;
+                }
+
+                const targets = assetRegistry.filter(a => selectedAssets.has(a.filename));
+                
+                for (const item of targets) {
+                    try {
+                        const res = await fetch(item.url);
+                        const blob = await res.blob();
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(blob);
+                        link.download = item.filename;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    } catch (e) {
+                        window.open(item.url, '_blank');
+                    }
+                }
+            }
+
+            async function deleteSelected() {
+                if (selectedAssets.size === 0) {
+                    alert("No items selected for removal.");
+                    return;
+                }
+
+                if (!confirm(`Purge ${selectedAssets.size} asset records permanently?`)) return;
+
+                const feedback = document.getElementById('statusReport');
+                feedback.innerText = "⚙️ PURGING DATA NODES...";
+
+                const packet = new FormData();
+                selectedAssets.forEach(name => {
+                    packet.append('filenames', name);
+                });
+
+                try {
+                    const res = await fetch('/api/delete', { method: 'POST', body: packet });
+                    if (res.ok) {
+                        feedback.innerText = "🗑️ DELETION SEQUENCE COMPLETED SUCCESSFULLY.";
+                        selectedAssets.clear();
+                        fetchVaultFeed();
+                    } else {
+                        feedback.innerText = "❌ RUNTIME FAILED TO DROP TABLE TARGETS.";
+                    }
+                } catch (err) {
+                    feedback.innerText = "❌ COMM LINK DROP ERROR.";
+                }
+            }
+
+            // Bootstrap application layout loops
+            fetchVaultFeed();
+        </script>
+    </body>
+    </html>
+    """
+# -------------------------------------------------------
 
 @app.get("/api/health")
 def health_check():
-    """Verifies API status and database connectivity details."""
     return {"status": "online", "database_connected": supabase is not None}
 
 @app.post("/api/upload")
 async def upload_media(file: UploadFile = File(...)):
-    """Receives file chunks, pushes to Supabase Storage, and adds records to database."""
     if not supabase:
         raise HTTPException(status_code=500, detail="Database credentials missing or invalid.")
         
@@ -48,17 +361,14 @@ async def upload_media(file: UploadFile = File(...)):
         file_type = file.content_type or "application/octet-stream"
         bucket_name = "media-vault"
         
-        # Upload binary stream directly to Supabase storage bucket
         supabase.storage.from_(bucket_name).upload(
             path=filename,
             file=file_bytes,
             file_options={"content-type": file_type, "upsert": "true"}
         )
         
-        # Fetch the cloud resource URL path
         public_url = supabase.storage.from_(bucket_name).get_public_url(filename)
         
-        # Insert entry metadata straight into your PostgreSQL database tracking sheet
         db_data = {
             "filename": filename,
             "file_type": file_type,
@@ -72,7 +382,6 @@ async def upload_media(file: UploadFile = File(...)):
 
 @app.get("/api/media")
 def fetch_media():
-    """Queries and returns the full list of media items sorted chronologically."""
     if not supabase:
         return []
     try:
@@ -83,21 +392,17 @@ def fetch_media():
 
 @app.post("/api/delete")
 def delete_media(filenames: list[str] = Form(...)):
-    """Accepts checklist arrays, deletes media files from bucket, and clears records from DB."""
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection down.")
         
     try:
         bucket_name = "media-vault"
         
-        # Format list parsing safely for different form submissions
         if isinstance(filenames, str):
             filenames = [filenames]
             
-        # Clear raw media tracking files out of cloud storage bins
         supabase.storage.from_(bucket_name).remove(filenames)
         
-        # Delete row entries from Postgres data logs
         for name in filenames:
             supabase.table("statuses").delete().eq("filename", name).execute()
             
