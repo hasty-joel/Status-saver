@@ -1,27 +1,8 @@
 import os
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse # <-- Make sure this is imported
-from supabase import create_client, Client
-
-app = FastAPI()
-
-# --- ADD THIS HOME FALLBACK ROUTE TO FIX THE 404/NOT FOUND ERROR ---
-@app.get("/", response_class=HTMLResponse)
-def serve_home():
-    # Looks for your frontend index file inside your root project folder deployment
-    public_path = os.path.join(os.getcwd(), "public", "index.html")
-    if os.path.exists(public_path):
-        with open(public_path, "r", encoding="utf-8") as file:
-            return file.read()
-    return "<h1>⚡ NEON_VAULT Core Online</h1><p>API endpoint listening successfully. Frontend configuration mounting...</p>"
-# --------------------------------------------------------------------
-
-# Keep all your other existing Supabase configuration, CORS middlewares, 
-# and upload/delete endpoints exactly the same underneath...
-import os
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from supabase import create_client, Client
 
 app = FastAPI()
@@ -46,6 +27,26 @@ else:
         supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
     except Exception:
         supabase = None
+
+# Calculate absolute paths pointing into Vercel's deployment container
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PUBLIC_DIR = os.path.join(BASE_DIR, "public")
+
+@app.get("/")
+def serve_index():
+    """Serves the front-end dashboard instantly on the base URL."""
+    index_path = os.path.join(PUBLIC_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"error": "Frontend assets missing in public/ folder"}
+
+@app.get("/script.js")
+def serve_script():
+    """Serves the interactive front-end engine file directly."""
+    script_path = os.path.join(PUBLIC_DIR, "script.js")
+    if os.path.exists(script_path):
+        return FileResponse(script_path, media_type="application/javascript")
+    return {"error": "script.js missing"}
 
 @app.get("/api/health")
 def health_check():
@@ -103,7 +104,6 @@ def delete_media(filenames: list[str] = Form(...)):
         
     try:
         bucket_name = "media-vault"
-        # FIXED: Corrected .from_image() to native bucket caller .from_()
         supabase.storage.from_(bucket_name).remove(filenames)
         
         for name in filenames:
@@ -112,3 +112,7 @@ def delete_media(filenames: list[str] = Form(...)):
         return {"success": True, "deleted_count": len(filenames)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Mount all other static assets (like styles or images) if they exist inside public
+if os.path.exists(PUBLIC_DIR):
+    app.mount("/public", StaticFiles(directory=PUBLIC_DIR), name="public")
