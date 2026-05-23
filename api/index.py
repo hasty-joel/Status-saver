@@ -15,17 +15,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Supabase Client using Vercel Environment Variables
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+# Safe initialization of Supabase Client
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip()
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "").strip()
 
-try:
-    if SUPABASE_URL and SUPABASE_KEY:
-        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    else:
+supabase = None
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception:
         supabase = None
-except Exception:
-    supabase = None
 
 # --- SERVE FULL FRONTEND ENGINE DIRECTLY FROM MEMORY ---
 @app.get("/", response_class=HTMLResponse)
@@ -224,7 +223,6 @@ def serve_frontend():
                     const response = await fetch('/api/media');
                     const rawData = await response.json();
                     
-                    // AUTO-CORRECTION LAYER: Standardize properties regardless of Database schema names
                     assetRegistry = rawData.map((item, index) => {
                         const filename = item.filename || item.file_name || item.name || item.id || `asset_${index}`;
                         const url = item.url || item.public_url || item.file_url;
@@ -252,8 +250,6 @@ def serve_frontend():
                     const isSelected = selectedAssets.has(asset.filename);
                     const card = document.createElement('div');
                     card.className = `asset-card ${isSelected ? 'selected' : ''}`;
-                    
-                    // Let clicking the entire card toggle selection to completely avoid checkbox friction
                     card.onclick = () => toggleAssetSelection(asset.filename);
                     
                     let visualPreview = `<img src="${asset.url}" alt="asset">`;
@@ -355,9 +351,9 @@ def serve_frontend():
                 feedback.innerText = "⚙️ PURGING DATA NODES...";
 
                 const packet = new FormData();
-                selectedAssets.forEach(name => {
-                    packet.append('filenames', name);
-                });
+                // Send comma-separated string to avoid FastAPI array form issues
+                const filenamesArray = Array.from(selectedAssets);
+                packet.append('filenames_str', filenamesArray.join(','));
 
                 try {
                     const res = await fetch('/api/delete', { method: 'POST', body: packet });
@@ -388,7 +384,7 @@ def health_check():
 @app.post("/api/upload")
 async def upload_media(file: UploadFile = File(...)):
     if not supabase:
-        raise HTTPException(status_code=500, detail="Database credentials missing or invalid.")
+        raise HTTPException(status_code=500, detail="Database connection configuration missing.")
         
     try:
         file_bytes = await file.read()
@@ -426,20 +422,21 @@ def fetch_media():
         return []
 
 @app.post("/api/delete")
-def delete_media(filenames: list[str] = Form(...)):
+def delete_media(filenames_str: str = Form(...)):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection down.")
         
     try:
         bucket_name = "media-vault"
         
-        if isinstance(filenames, str):
-            filenames = [filenames]
+        # Split string back into a clean list of individual items
+        filenames = [name.strip() for name in filenames_str.split(",") if name.strip()]
+        if not filenames:
+            return {"success": True, "deleted_count": 0}
             
         supabase.storage.from_(bucket_name).remove(filenames)
         
         for name in filenames:
-            # Handle standard table structural layouts gracefully
             supabase.table("statuses").delete().or_(f"filename.eq.{name},file_name.eq.{name}").execute()
             
         return {"success": True, "deleted_count": len(filenames)}
