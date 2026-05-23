@@ -1,127 +1,169 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚡ NEON_VAULT // Media Terminal</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        cyberBg: '#0B0F19',
-                        cyberCard: '#121826',
-                        cyberNeon: '#00FF66',
-                        cyberCyan: '#00F0FF',
-                        cyberText: '#E2E8F0',
-                        lightBg: '#F8FAFC',
-                        lightCard: '#FFFFFF',
-                        lightBorder: '#CBD5E1',
-                    }
-                }
-            }
-        }
-    </script>
+    <title>MEDIA_VAULT // Core Control</title>
     <style>
-        .neon-glow { box-shadow: 0 0 15px rgba(0, 255, 102, 0.2); border-color: #00FF66; }
-        .cyan-glow { box-shadow: 0 0 15px rgba(0, 240, 255, 0.2); border-color: #00F0FF; }
-        .glass { backdrop-filter: blur(12px); background-color: rgba(18, 24, 38, 0.8); }
-        .light .glass { background-color: rgba(255, 255, 255, 0.8); }
+        :root {
+            --neon-green: #00ff66;
+            --neon-blue: #00f0ff;
+            --dark-bg: #0a0a0c;
+            --panel-bg: #12121a;
+            --border-color: #222230;
+        }
+        body {
+            background-color: var(--dark-bg);
+            color: #ffffff;
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        header {
+            border-bottom: 2px solid var(--neon-blue);
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: var(--neon-green);
+            margin: 0;
+            text-shadow: 0 0 10px rgba(0, 255, 102, 0.3);
+        }
+        .upload-card {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--neon-blue);
+            padding: 20px;
+            border-radius: 4px;
+            margin-bottom: 30px;
+        }
+        .drop-zone {
+            border: 2px dashed #333344;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .drop-zone:hover {
+            border-color: var(--neon-green);
+            background: rgba(0, 255, 102, 0.02);
+        }
+        .batch-actions {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            background: #111116;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+        }
+        button {
+            background: transparent;
+            color: var(--neon-blue);
+            border: 1px solid var(--neon-blue);
+            padding: 8px 16px;
+            font-family: monospace;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: rgba(0, 240, 255, 0.1);
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+        }
+        button.danger {
+            color: #ff3366;
+            border-color: #ff3366;
+        }
+        button.danger:hover {
+            background: rgba(255, 51, 102, 0.1);
+            box-shadow: 0 0 10px rgba(255, 51, 102, 0.3);
+        }
+        .vault-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 20px;
+        }
+        .asset-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+            transition: 0.2s;
+        }
+        .asset-card.selected {
+            border-color: var(--neon-green);
+            box-shadow: 0 0 12px rgba(0, 255, 102, 0.2);
+        }
+        .preview-box {
+            width: 100%;
+            height: 150px;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        .preview-box img, .preview-box video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .card-meta {
+            padding: 12px;
+            font-size: 13px;
+        }
+        .filename-text {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 8px;
+        }
+        .checkbox-container {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 10;
+            background: rgba(0,0,0,0.7);
+            padding: 5px;
+            border-radius: 3px;
+            border: 1px solid #333;
+        }
+        .checkbox-container input {
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+        }
     </style>
 </head>
-<body class="bg-cyberBg light:bg-lightBg text-cyberText light:text-slate-900 min-h-screen transition-colors duration-300">
+<body>
+    <div class="container">
+        <header>
+            <h1>⚡ MATRIX_VAULT // CORE INTERFACE</h1>
+            <p>System Layer: FastAPI Serverless Cloud Matrix</p>
+        </header>
 
-    <!-- TOP NAVIGATION BAR -->
-    <nav class="border-b border-slate-800 light:border-lightBorder sticky top-0 z-50 glass px-4 py-3 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-            <span class="text-cyberNeon font-black text-xl tracking-widest animate-pulse">⚡ NEON_VAULT</span>
-            <span class="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-mono">v2.0.26</span>
+        <div class="upload-card">
+            <div class="drop-zone" onclick="document.getElementById('filePicker').click()">
+                <p>⚙️ CLICK OR DRAG ASSETS HERE TO INJECT INTO THE CLOUD ARRAY ⚙️</p>
+                <input type="file" id="filePicker" style="display:none" onchange="uploadAsset(this.files[0])">
+            </div>
+            <div id="statusReport" style="margin-top:10px; color:var(--neon-green)"></div>
         </div>
-        <button id="themeToggle" class="p-2 rounded-lg bg-slate-800 light:bg-slate-200 border border-slate-700 light:border-slate-300 text-cyberCyan light:text-indigo-600 font-mono text-xs uppercase tracking-wider font-bold">
-            ⚡ Toggle_Mode
-        </button>
-    </nav>
 
-    <main class="max-w-6xl mx-auto px-4 py-6 pb-32">
+        <h2>📦 ARCHIVED ASSETS</h2>
         
-        <!-- UPLOAD ZONE & CREATOR PANEL GRID -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            
-            <!-- Drag and Drop Media Terminal -->
-            <div class="md:col-span-2 bg-cyberCard light:bg-lightCard border border-slate-800 light:border-lightBorder rounded-xl p-6 relative overflow-hidden flex flex-col justify-between">
-                <div class="absolute top-0 left-0 w-2 h-full bg-cyberNeon"></div>
-                <div>
-                    <h2 class="text-lg font-mono font-bold uppercase tracking-wider text-cyberNeon mb-1">⚡ Terminal_Upload</h2>
-                    <p class="text-xs text-slate-400 light:text-slate-500 mb-4">Transmit images or MP4 video files into the Supabase cloud bucket matrix.</p>
-                </div>
-                
-                <label class="border-2 border-dashed border-slate-700 light:border-slate-300 rounded-lg p-8 flex flex-col items-center justify-center cursor-pointer hover:border-cyberNeon transition-colors group">
-                    <input type="file" id="mediaUpload" accept="image/*,video/mp4" class="hidden">
-                    <span class="text-3xl mb-2 group-hover:scale-110 transition-transform">📤</span>
-                    <span class="text-sm font-mono text-slate-300 light:text-slate-600 font-bold">Select_File_System</span>
-                    <span class="text-xs text-slate-500 mt-1">PNG, JPG, or MP4 (Max 50MB)</span>
-                </label>
-                <div id="uploadStatus" class="mt-3 text-xs font-mono hidden"></div>
-            </div>
-
-            <!-- Creator Terminal Profile Widget (Hasty Joel) -->
-            <div class="bg-cyberCard light:bg-lightCard border border-slate-800 light:border-lightBorder rounded-xl p-6 relative overflow-hidden flex flex-col items-center text-center">
-                <div class="absolute top-0 right-0 h-2 w-full bg-cyberCyan"></div>
-                <div class="w-22 h-22 rounded-full border-2 border-cyberCyan p-1 mb-3 overflow-hidden shadow-lg cyan-glow bg-slate-900">
-                    <!-- Tailored Hasty Joel profile portrait source configuration -->
-                    <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80" alt="Hasty Joel Avatar" class="w-full h-full object-cover rounded-full">
-                </div>
-                <h3 class="font-mono font-bold tracking-wider text-cyberCyan uppercase text-lg">Hasty Joel</h3>
-                <span class="text-[10px] bg-cyan-950 text-cyberCyan border border-cyan-800 px-2 py-0.5 rounded-full uppercase font-mono tracking-widest font-bold mb-2">Core_Architect</span>
-                <p class="text-xs text-slate-400 light:text-slate-500 mt-1 max-w-[240px] leading-relaxed">
-                    Lead full-stack specialist engineering secure media matrix solutions for seamless iOS, Android, and web distribution pipelines.
-                </p>
-                
-                <div class="flex gap-2 mt-auto pt-4 w-full">
-                    <a href="#" class="flex-1 text-center py-1.5 text-xs font-mono border border-slate-800 light:border-lightBorder hover:border-cyberCyan rounded bg-slate-900/50 light:bg-slate-100 transition-colors font-bold">GITHUB</a>
-                    <a href="#" class="flex-1 text-center py-1.5 text-xs font-mono border border-slate-800 light:border-lightBorder hover:border-cyberCyan rounded bg-slate-900/50 light:bg-slate-100 transition-colors font-bold">NETWORK</a>
-                </div>
-            </div>
+        <div class="batch-actions">
+            <button onclick="toggleSelectAll()">Select/Deselect All</button>
+            <button onclick="downloadSelected()">📥 Download Selected</button>
+            <button class="danger" onclick="deleteSelected()">🗑️ Delete Selected</button>
         </div>
 
-        <!-- MAIN VAULT REPOSITORY -->
-        <div class="mb-4 flex items-center justify-between border-b border-slate-800 light:border-lightBorder pb-2">
-            <h2 class="font-mono text-md font-bold uppercase tracking-widest flex items-center gap-2">
-                📂 Live_Repository <span id="itemCount" class="text-xs bg-slate-800 light:bg-slate-200 px-2 py-0.5 rounded text-cyberNeon">(0)</span>
-            </h2>
-            <button id="selectAllBtn" class="text-xs font-mono text-slate-400 hover:text-cyberNeon transition-colors uppercase font-bold">
-                [ ] Select_All
-            </button>
-        </div>
-
-        <!-- EMPTY REPOSITORY PLACEHOLDER -->
-        <div id="emptyState" class="border border-slate-800 light:border-lightBorder rounded-xl p-12 text-center font-mono text-sm text-slate-500">
-            📡 Scan pipeline empty. Upload assets above to populate matrix.
-        </div>
-
-        <!-- MEDIA MATRIX ENGINE CONTAINER (Handles grid structure + banner insertion seamlessly) -->
-        <div id="matrixContainer" class="space-y-6">
-            <!-- JavaScript dynamically formats rows into 10-count sections with interleaved Ad panels here -->
-        </div>
-    </main>
-
-    <!-- FLOATING BATCH ACTION BAR -->
-    <div id="actionBar" class="fixed bottom-0 left-0 right-0 glass border-t border-slate-800 light:border-lightBorder p-4 transform translate-y-full transition-transform duration-300 z-40 shadow-2xl flex justify-between items-center max-w-xl mx-auto rounded-t-xl mb-0 md:mb-4 md:border-x">
-        <div class="font-mono text-xs text-slate-300 light:text-slate-600">
-            Selected: <span id="selectedCount" class="text-cyberCyan font-bold">0</span>
-        </div>
-        <div class="flex gap-2">
-            <button id="batchDownloadBtn" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-mono text-xs font-bold transition-all uppercase tracking-wider">
-                📥 Save
-            </button>
-            <button id="batchDeleteBtn" class="px-4 py-2 rounded-lg bg-red-900/40 border border-red-500 text-red-400 font-mono text-xs font-bold hover:bg-red-900/70 transition-all uppercase tracking-wider">
-                ❌ Purge
-            </button>
-        </div>
+        <div class="vault-grid" id="vaultGrid"></div>
     </div>
 
+    <script src="/script.js"></script>
 </body>
 </html>

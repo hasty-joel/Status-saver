@@ -91,6 +91,7 @@ def serve_frontend():
                 background: #111116;
                 padding: 15px;
                 border: 1px solid var(--border-color);
+                align-items: center;
             }
             button {
                 background: transparent;
@@ -125,10 +126,11 @@ def serve_frontend():
                 overflow: hidden;
                 position: relative;
                 transition: 0.2s;
+                cursor: pointer;
             }
             .asset-card.selected {
-                border-color: var(--neon-green);
-                box-shadow: 0 0 12px rgba(0, 255, 102, 0.2);
+                border-color: var(--neon-green) !important;
+                box-shadow: 0 0 15px rgba(0, 255, 102, 0.3);
             }
             .preview-box {
                 width: 100%;
@@ -138,6 +140,7 @@ def serve_frontend():
                 align-items: center;
                 justify-content: center;
                 position: relative;
+                pointer-events: none;
             }
             .preview-box img, .preview-box video {
                 width: 100%;
@@ -147,27 +150,41 @@ def serve_frontend():
             .card-meta {
                 padding: 12px;
                 font-size: 13px;
+                background: rgba(0,0,0,0.3);
+                pointer-events: none;
             }
             .filename-text {
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
-                margin-bottom: 8px;
             }
-            .checkbox-container {
+            .selection-indicator {
                 position: absolute;
                 top: 10px;
                 left: 10px;
                 z-index: 10;
-                background: rgba(0,0,0,0.7);
-                padding: 5px;
-                border-radius: 3px;
+                background: rgba(0, 0, 0, 0.85);
+                color: #fff;
                 border: 1px solid #333;
+                width: 22px;
+                height: 22px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
+                font-weight: bold;
+                border-radius: 3px;
+                transition: 0.2s;
             }
-            .checkbox-container input {
-                cursor: pointer;
-                width: 16px;
-                height: 16px;
+            .asset-card.selected .selection-indicator {
+                background: var(--neon-green);
+                border-color: var(--neon-green);
+                color: #000;
+            }
+            .counter-badge {
+                margin-left: auto;
+                color: var(--neon-green);
+                font-size: 14px;
             }
         </style>
     </head>
@@ -192,6 +209,7 @@ def serve_frontend():
                 <button onclick="toggleSelectAll()">Select/Deselect All</button>
                 <button onclick="downloadSelected()">📥 Download Selected</button>
                 <button class="danger" onclick="deleteSelected()">🗑️ Delete Selected</button>
+                <div class="counter-badge" id="counterDisplay">Selected: 0</div>
             </div>
 
             <div class="vault-grid" id="vaultGrid"></div>
@@ -204,7 +222,16 @@ def serve_frontend():
             async function fetchVaultFeed() {
                 try {
                     const response = await fetch('/api/media');
-                    assetRegistry = await response.json();
+                    const rawData = await response.json();
+                    
+                    // AUTO-CORRECTION LAYER: Standardize properties regardless of Database schema names
+                    assetRegistry = rawData.map((item, index) => {
+                        const filename = item.filename || item.file_name || item.name || item.id || `asset_${index}`;
+                        const url = item.url || item.public_url || item.file_url;
+                        const file_type = item.file_type || item.type || (url && url.includes('.mp4') ? 'video/mp4' : 'image/jpeg');
+                        return { ...item, filename, url, file_type };
+                    });
+                    
                     renderVaultGrid();
                 } catch (err) {
                     console.error("Failed to query API architecture:", err);
@@ -217,6 +244,7 @@ def serve_frontend():
 
                 if (!assetRegistry || assetRegistry.length === 0) {
                     grid.innerHTML = '<p style="color:#666; grid-column: 1/-1;">No records found inside database repository.</p>';
+                    updateCounter();
                     return;
                 }
 
@@ -225,15 +253,16 @@ def serve_frontend():
                     const card = document.createElement('div');
                     card.className = `asset-card ${isSelected ? 'selected' : ''}`;
                     
+                    // Let clicking the entire card toggle selection to completely avoid checkbox friction
+                    card.onclick = () => toggleAssetSelection(asset.filename);
+                    
                     let visualPreview = `<img src="${asset.url}" alt="asset">`;
                     if (asset.file_type && asset.file_type.includes('video')) {
                         visualPreview = `<video src="${asset.url}" muted playsinline></video>`;
                     }
 
                     card.innerHTML = `
-                        <div class="checkbox-container">
-                            <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleAssetSelection('${asset.filename}')">
-                        </div>
+                        <div class="selection-indicator">${isSelected ? '✓' : ''}</div>
                         <div class="preview-box">
                             ${visualPreview}
                         </div>
@@ -243,6 +272,8 @@ def serve_frontend():
                     `;
                     grid.appendChild(card);
                 });
+                
+                updateCounter();
             }
 
             function toggleAssetSelection(filename) {
@@ -263,6 +294,10 @@ def serve_frontend():
                 renderVaultGrid();
             }
 
+            function updateCounter() {
+                document.getElementById('counterDisplay').innerText = `Selected: ${selectedAssets.size}`;
+            }
+
             async function uploadAsset(file) {
                 if (!file) return;
                 const feedback = document.getElementById('statusReport');
@@ -274,7 +309,7 @@ def serve_frontend():
                 try {
                     const response = await fetch('/api/upload', { method: 'POST', body: packet });
                     if (response.ok) {
-                        feedback.innerText = "✅ ASSET STREAM STORED IN SUPABASE DATASTRUCTURES.";
+                        feedback.innerText = "✅ ASSET STORED SUCCESSFULLY.";
                         fetchVaultFeed();
                     } else {
                         feedback.innerText = "❌ PIPELINE REJECTED ASSET PAYLOAD.";
@@ -286,7 +321,7 @@ def serve_frontend():
 
             async function downloadSelected() {
                 if (selectedAssets.size === 0) {
-                    alert("Select at least one checklist item first.");
+                    alert("Select at least one item first.");
                     return;
                 }
 
@@ -331,14 +366,14 @@ def serve_frontend():
                         selectedAssets.clear();
                         fetchVaultFeed();
                     } else {
-                        feedback.innerText = "❌ RUNTIME FAILED TO DROP TABLE TARGETS.";
+                        feedback.innerText = "❌ RUNTIME FAILED TO DROP TARGETS.";
                     }
                 } catch (err) {
                     feedback.innerText = "❌ COMM LINK DROP ERROR.";
                 }
             }
 
-            // Bootstrap application layout loops
+            // Bootstrap application
             fetchVaultFeed();
         </script>
     </body>
@@ -404,7 +439,8 @@ def delete_media(filenames: list[str] = Form(...)):
         supabase.storage.from_(bucket_name).remove(filenames)
         
         for name in filenames:
-            supabase.table("statuses").delete().eq("filename", name).execute()
+            # Handle standard table structural layouts gracefully
+            supabase.table("statuses").delete().or_(f"filename.eq.{name},file_name.eq.{name}").execute()
             
         return {"success": True, "deleted_count": len(filenames)}
     except Exception as e:
